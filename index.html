@@ -1,7 +1,7 @@
 <title>Hoa Hồng</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400;1,500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500;1,600&display=swap">
 <style>
   :root{
     --ground:#060306;
@@ -12,35 +12,37 @@
   body{color:var(--ink)}
   canvas{display:block;width:100vw;height:100vh}
 
-  .caption{
-    position:fixed;left:clamp(16px,4vw,44px);bottom:clamp(18px,5vh,48px);
+  .title{
+    position:fixed;left:clamp(16px,4vw,52px);bottom:clamp(46px,10vh,88px);
+    max-width:min(78vw,15ch);
     font-family:"Cormorant Garamond",Georgia,serif;
-    font-style:italic;font-weight:500;
-    font-size:clamp(1.15rem,2.4vw,1.7rem);
-    letter-spacing:.01em;line-height:1.3;
+    font-style:italic;font-weight:600;
+    font-size:clamp(1.7rem,5.2vw,3.1rem);
+    letter-spacing:.005em;line-height:1.12;
+    text-wrap:balance;
     color:var(--ink);opacity:0;
-    text-shadow:0 1px 20px rgba(0,0,0,.7);
+    text-shadow:0 2px 28px rgba(0,0,0,.75);
     animation:rise 2s ease .6s forwards;
     pointer-events:none;
   }
   .hint{
-    position:fixed;right:clamp(16px,4vw,44px);bottom:clamp(18px,5vh,48px);
-    max-width:min(46vw,320px);text-align:right;
-    font:400 .72rem/1.5 system-ui,-apple-system,sans-serif;
+    position:fixed;left:clamp(16px,4vw,52px);bottom:clamp(18px,5vh,44px);
+    max-width:min(70vw,340px);
+    font:400 .74rem/1.5 system-ui,-apple-system,sans-serif;
     letter-spacing:.03em;
-    color:color-mix(in srgb,var(--ink) 42%,transparent);
-    opacity:0;animation:rise 2s ease 1.1s forwards;
+    color:color-mix(in srgb,var(--ink) 40%,transparent);
+    opacity:0;animation:rise 2s ease 1.2s forwards;
     pointer-events:none;
   }
-  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){
-    .caption,.hint{animation:none;opacity:1;transform:none}
+    .title,.hint{animation:none;opacity:1;transform:none}
   }
 </style>
 
 <canvas id="c"></canvas>
-<p class="caption">Một đóa hồng nở trong đêm.</p>
-<p class="hint">Di chuột (hoặc chạm kéo) để hoa nghiêng theo &middot; nhấn phím hoặc chạm để đổi sắc</p>
+<p class="title">Tặng bạn bông hồng cuộc đời &mdash; thêm zui!</p>
+<p class="hint">Di chuột hoặc chạm kéo để hoa nghiêng theo &middot; chạm (hoặc nhấn phím) để hoa nở to hơn</p>
 
 <script>
 const cv = document.getElementById('c');
@@ -82,10 +84,11 @@ function spawn(init){
 let mx = 0;
 addEventListener('pointermove', e => { mx = (e.clientX / W - 0.5) * 2; });
 
-let hueShift = 0;
-function shift(){ hueShift = (hueShift + 40) % 360; }
-addEventListener('keydown', shift);
-addEventListener('pointerdown', shift);
+// --- cham / nhan phim => hoa no to hon ---
+let bloom = 0, bloomTarget = 0;
+function pop(){ bloomTarget = Math.min(bloomTarget + 0.42, 1.6); }
+addEventListener('keydown', pop);
+addEventListener('pointerdown', pop);
 
 function petalPath(a, b){
   ctx.beginPath();
@@ -95,11 +98,16 @@ function petalPath(a, b){
   ctx.closePath();
 }
 
-const M = reduce ? 0.25 : 1;   // he so bien do chuyen dong
+const M = reduce ? 0.25 : 1;   // he so bien do chuyen dong nen
 let t = 0;
 
 function frame(){
   t += 0.016;
+
+  // no to roi tu tu thu nho lai
+  bloomTarget *= 0.9925;
+  bloom += (bloomTarget - bloom) * 0.09;
+  const grow = 1 + bloom * 0.55;
 
   ctx.fillStyle = '#060306';
   ctx.fillRect(0, 0, W, H);
@@ -109,10 +117,10 @@ function frame(){
   const tilt   = Math.sin(t * 0.5) * 0.05 * M + mx * 0.12;
 
   // --- quang sang mo phia sau ---
-  const R = 340 * S * breath;
+  const R = 340 * S * (breath + bloom * 0.7);
   const g = ctx.createRadialGradient(CX + swayX, CY, 0, CX + swayX, CY, R);
-  g.addColorStop(0, `hsla(${(345 + hueShift) % 360},82%,46%,0.30)`);
-  g.addColorStop(0.5, `hsla(${(338 + hueShift) % 360},70%,30%,0.12)`);
+  g.addColorStop(0, 'hsla(345,82%,46%,0.30)');
+  g.addColorStop(0.5, 'hsla(338,70%,30%,0.12)');
   g.addColorStop(1, 'transparent');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
@@ -143,7 +151,7 @@ function frame(){
   ctx.save();
   ctx.translate(CX + swayX, CY);
   ctx.rotate(tilt + Math.sin(t * 0.3) * 0.15 * M);
-  ctx.scale(breath, breath);
+  ctx.scale(breath * grow, breath * grow);
 
   const N = 90;
   const golden = 137.508 * Math.PI / 180;
@@ -154,7 +162,7 @@ function frame(){
     const px = Math.cos(ang) * dist;
     const py = Math.sin(ang) * dist * 0.92;
     const size  = (26 + 66 * f) * S;
-    const hue   = (352 - 16 * f + hueShift + 360) % 360;
+    const hue   = (352 - 16 * f + 360) % 360;
     const light = (16 + 40 * f) * (0.92 + 0.08 * Math.sin(t * 2 + i * 0.3) * M);
     ctx.save();
     ctx.translate(px, py);
@@ -184,7 +192,7 @@ function frame(){
     ctx.translate(p.x, p.y);
     ctx.rotate(p.rot);
     ctx.scale(p.s / 10, p.s / 10);
-    ctx.fillStyle = `hsla(${(p.hue + hueShift) % 360}, 70%, 62%, ${p.alpha})`;
+    ctx.fillStyle = `hsla(${p.hue % 360}, 70%, 62%, ${p.alpha})`;
     petalPath(9, 13);
     ctx.fill();
     ctx.restore();
