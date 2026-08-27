@@ -3,13 +3,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500;1,600&display=swap">
 <style>
-  :root{
-    --ground:#060306;
-    --ink:#f4e9ec;
-  }
+  :root{ --ground:#060306; }
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%;background:var(--ground);overflow:hidden}
-  body{color:var(--ink)}
   canvas{display:block;width:100vw;height:100vh}
 
   .title{
@@ -18,22 +14,24 @@
     font-family:"Cormorant Garamond",Georgia,serif;
     font-style:italic;font-weight:600;
     font-size:clamp(1.7rem,5.2vw,3.1rem);
-    letter-spacing:.005em;line-height:1.12;
-    text-wrap:balance;
-    color:var(--ink);opacity:0;
-    text-shadow:0 2px 28px rgba(0,0,0,.75);
-    animation:rise 2s ease .6s forwards;
+    letter-spacing:.005em;line-height:1.12;text-wrap:balance;
+    color:#f4e9ec;text-shadow:0 2px 28px rgba(0,0,0,.75);
+    opacity:0;animation:rise 2s ease .6s forwards;
+    transition:color .9s ease,text-shadow .9s ease;
     pointer-events:none;
   }
   .hint{
     position:fixed;left:clamp(16px,4vw,52px);bottom:clamp(18px,5vh,44px);
-    max-width:min(70vw,340px);
-    font:400 .74rem/1.5 system-ui,-apple-system,sans-serif;
-    letter-spacing:.03em;
-    color:color-mix(in srgb,var(--ink) 40%,transparent);
+    max-width:min(72vw,360px);
+    font:400 .74rem/1.5 system-ui,-apple-system,sans-serif;letter-spacing:.03em;
+    color:rgba(244,233,236,.4);
     opacity:0;animation:rise 2s ease 1.2s forwards;
+    transition:color .9s ease;
     pointer-events:none;
   }
+  body.day .title{ color:#4a2c33;text-shadow:0 1px 10px rgba(255,255,255,.85),0 0 2px rgba(255,255,255,.6) }
+  body.day .hint{ color:rgba(74,44,51,.65) }
+
   @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){
     .title,.hint{animation:none;opacity:1;transform:none}
@@ -42,7 +40,7 @@
 
 <canvas id="c"></canvas>
 <p class="title">Tặng bạn bông hồng cuộc đời &mdash; thêm zui!</p>
-<p class="hint">Di chuột hoặc chạm kéo để hoa nghiêng theo &middot; chạm (hoặc nhấn phím) để hoa nở to hơn</p>
+<p class="hint">Di chuột hoặc chạm kéo để hoa nghiêng theo &middot; chạm vào bông hoa để trời sáng lên (chạm lần nữa: về đêm)</p>
 
 <script>
 const cv = document.getElementById('c');
@@ -57,14 +55,13 @@ function resize(){
   cv.width  = Math.round(W * DPR);
   cv.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  CX = W / 2;
-  CY = H / 2;
+  CX = W / 2; CY = H / 2;
   S = Math.max(Math.min(W, H) / 900, 0.32);
 }
 addEventListener('resize', resize);
 resize();
 
-// --- canh hoa roi trong khong gian ---
+// --- canh hoa roi (ban dem) ---
 const petals = Array.from({length: 36}, () => spawn(true));
 function spawn(init){
   return {
@@ -81,14 +78,30 @@ function spawn(init){
   };
 }
 
+// --- may (ban ngay) ---
+const clouds = [
+  { x: 0.18, y: 0.13, s: 1.15, v: 0.22 },
+  { x: 0.62, y: 0.20, s: 0.85, v: 0.15 },
+  { x: 0.85, y: 0.30, s: 1.0,  v: 0.30 },
+  { x: 0.40, y: 0.09, s: 0.7,  v: 0.10 }
+].map(c => ({ ...c, x: c.x * (W || 800) }));
+
 let mx = 0;
 addEventListener('pointermove', e => { mx = (e.clientX / W - 0.5) * 2; });
 
-// --- cham / nhan phim => hoa no to hon ---
-let bloom = 0, bloomTarget = 0;
-function pop(){ bloomTarget = Math.min(bloomTarget + 0.42, 1.6); }
-addEventListener('keydown', pop);
-addEventListener('pointerdown', pop);
+// --- bam vao hoa => chuyen ngay / dem ---
+let day = 0, dayTarget = 0;
+let curCX = CX;
+function toggleDay(){
+  dayTarget = dayTarget < 0.5 ? 1 : 0;
+  document.body.classList.toggle('day', dayTarget > 0.5);
+}
+addEventListener('keydown', toggleDay);
+addEventListener('pointerdown', e => {
+  const dx = e.clientX - curCX;
+  const dy = e.clientY - CY;
+  if (Math.hypot(dx, dy) < 230 * S) toggleDay();
+});
 
 function petalPath(a, b){
   ctx.beginPath();
@@ -98,34 +111,180 @@ function petalPath(a, b){
   ctx.closePath();
 }
 
-const M = reduce ? 0.25 : 1;   // he so bien do chuyen dong nen
+const M = reduce ? 0.25 : 1;
 let t = 0;
+
+function drawSun(a){
+  const sx = CX + 215 * S;
+  const sy = (CY - 30 * S) - a * 190 * S;      // moc len tu tu
+  ctx.save();
+  ctx.globalAlpha = a;
+  const gg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 170 * S);
+  gg.addColorStop(0, 'rgba(255,238,180,0.95)');
+  gg.addColorStop(0.4, 'rgba(255,214,120,0.35)');
+  gg.addColorStop(1, 'transparent');
+  ctx.fillStyle = gg;
+  ctx.beginPath(); ctx.arc(sx, sy, 170 * S, 0, Math.PI * 2); ctx.fill();
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(t * 0.05 * M);
+  ctx.strokeStyle = 'rgba(255,220,130,0.6)';
+  ctx.lineWidth = 3 * S;
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 12; k++){
+    ctx.rotate(Math.PI / 6);
+    const len = (54 + 9 * Math.sin(t * 2 + k)) * S;
+    ctx.beginPath();
+    ctx.moveTo(0, 40 * S);
+    ctx.lineTo(0, len);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.fillStyle = '#ffd452';
+  ctx.beginPath(); ctx.arc(sx, sy, 33 * S, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffe89a';
+  ctx.beginPath(); ctx.arc(sx - 6 * S, sy - 6 * S, 22 * S, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function puff(cx, cy, r){ ctx.moveTo(cx + r, cy); ctx.arc(cx, cy, r, 0, Math.PI * 2); }
+function drawClouds(a){
+  ctx.save();
+  ctx.globalAlpha = a * 0.95;
+  for (const c of clouds){
+    c.x += c.v * (reduce ? 0.3 : 1);
+    if (c.x > W + 160) c.x = -160;
+    const cx = c.x, cy = c.y * H, s = c.s * S;
+    const grad = ctx.createLinearGradient(cx, cy - 30 * s, cx, cy + 24 * s);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(1, '#d7e6f2');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    puff(cx - 34 * s, cy + 6 * s, 20 * s);
+    puff(cx - 10 * s, cy - 8 * s, 26 * s);
+    puff(cx + 18 * s, cy - 4 * s, 22 * s);
+    puff(cx + 38 * s, cy + 8 * s, 18 * s);
+    puff(cx,          cy + 12 * s, 24 * s);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawMeadow(a){
+  const horizon = CY + 88 * S;
+  ctx.save();
+  ctx.globalAlpha = a;
+
+  const grad = ctx.createLinearGradient(0, horizon - 20 * S, 0, H);
+  grad.addColorStop(0, '#8bc34a');
+  grad.addColorStop(0.5, '#5a9e37');
+  grad.addColorStop(1, '#3c7a2a');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(0, horizon + 30 * S);
+  for (let x = 0; x <= W; x += 36){
+    ctx.lineTo(x, horizon + Math.sin(x * 0.02 + t * 0.6) * 7 * S);
+  }
+  ctx.lineTo(W, H); ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fill();
+
+  // co
+  for (let i = 0; i < 74; i++){
+    const depth = 0.25 + ((i * 7) % 10) / 10 * 0.75;
+    const bx = (i / 74) * W + Math.sin(i * 2.1) * 16 * S;
+    const by = horizon + (6 + depth * 46) * S + Math.sin(bx * 0.02 + t * 0.6) * 6 * S;
+    const bh = (16 + depth * 62) * S;
+    const sw = Math.sin(t * 1.6 + i) * 9 * depth * S * M;
+    ctx.strokeStyle = `hsl(${96 + depth * 18}, ${46 + depth * 14}%, ${26 + depth * 20}%)`;
+    ctx.lineWidth = (1.4 + depth * 1.8) * S;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.quadraticCurveTo(bx + sw * 0.5, by - bh * 0.6, bx + sw, by - bh);
+    ctx.stroke();
+  }
+
+  // hoa dai li ti
+  for (let j = 0; j < 14; j++){
+    const fx = ((j * 137.5) % 100) / 100 * W;
+    const fy = horizon + (18 + ((j * 53) % 40)) * S;
+    ctx.fillStyle = ['#fff3b0', '#ffd1e8', '#ffffff'][j % 3];
+    ctx.beginPath(); ctx.arc(fx, fy, 3.2 * S, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffca28';
+    ctx.beginPath(); ctx.arc(fx, fy, 1.3 * S, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawTuft(a){
+  ctx.save();
+  ctx.globalAlpha = a;
+  const gx = curCX, gy = CY + 150 * S;
+  for (let i = -8; i <= 8; i++){
+    const depth = 0.6 + Math.random() * 0.0;
+    const bh = (44 + Math.abs(8 - Math.abs(i)) * 6) * S;
+    const sw = Math.sin(t * 1.7 + i) * 10 * S * M;
+    ctx.strokeStyle = i % 2 ? '#4f9a34' : '#3f8129';
+    ctx.lineWidth = 2.4 * S;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(gx + i * 12 * S, gy);
+    ctx.quadraticCurveTo(gx + i * 12 * S + sw * 0.5, gy - bh * 0.6, gx + i * 12 * S + sw, gy - bh);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 
 function frame(){
   t += 0.016;
+  day += (dayTarget - day) * 0.045;
+  const night = 1 - day;
 
-  // no to roi tu tu thu nho lai
-  bloomTarget *= 0.9925;
-  bloom += (bloomTarget - bloom) * 0.09;
-  const grow = 1 + bloom * 0.55;
-
+  // nen dem
   ctx.fillStyle = '#060306';
   ctx.fillRect(0, 0, W, H);
+
+  // troi sang: bau troi sang truoc, roi mat troi / may / co hien dan
+  const dv = Math.max(0, (day - 0.12) / 0.88);
+  if (day > 0.002){
+    ctx.save();
+    ctx.globalAlpha = day;
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#bfe0f5');
+    sky.addColorStop(0.55, '#e9f4fb');
+    sky.addColorStop(1, '#ffffff');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    if (dv > 0.002){ drawSun(dv); drawClouds(dv); }
+  }
 
   const breath = 1 + 0.04 * Math.sin(t * 1.6) * M;
   const swayX  = (Math.sin(t * 0.7) * 18 * M + mx * 40) * S;
   const tilt   = Math.sin(t * 0.5) * 0.05 * M + mx * 0.12;
+  curCX = CX + swayX;
 
-  // --- quang sang mo phia sau ---
-  const R = 340 * S * (breath + bloom * 0.7);
-  const g = ctx.createRadialGradient(CX + swayX, CY, 0, CX + swayX, CY, R);
-  g.addColorStop(0, 'hsla(345,82%,46%,0.30)');
-  g.addColorStop(0.5, 'hsla(338,70%,30%,0.12)');
-  g.addColorStop(1, 'transparent');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
+  // quang sang magenta (ban dem)
+  if (night > 0.002){
+    ctx.save();
+    ctx.globalAlpha = night;
+    const R = 340 * S * breath;
+    const g = ctx.createRadialGradient(curCX, CY, 0, curCX, CY, R);
+    g.addColorStop(0, 'hsla(345,82%,46%,0.30)');
+    g.addColorStop(0.5, 'hsla(338,70%,30%,0.12)');
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
 
-  // --- than va la ---
+  // dong co quanh hoa (ban ngay)
+  if (dv > 0.002) drawMeadow(dv);
+
+  // than va la
   ctx.save();
   ctx.translate(CX, CY);
   ctx.strokeStyle = '#0f3d1e';
@@ -147,16 +306,15 @@ function frame(){
   }
   ctx.restore();
 
-  // --- bong hoa: canh xep theo goc vang (phyllotaxis) ---
+  // bong hoa
   ctx.save();
-  ctx.translate(CX + swayX, CY);
+  ctx.translate(curCX, CY);
   ctx.rotate(tilt + Math.sin(t * 0.3) * 0.15 * M);
-  ctx.scale(breath * grow, breath * grow);
-
+  ctx.scale(breath, breath);
   const N = 90;
   const golden = 137.508 * Math.PI / 180;
   for (let i = N; i >= 1; i--){
-    const f = i / N;                       // 0 = tam hoa, 1 = vanh ngoai
+    const f = i / N;
     const ang  = i * golden + Math.sin(t * 0.4) * 0.25 * M + f * 0.6;
     const dist = 150 * Math.pow(f, 0.78) * S;
     const px = Math.cos(ang) * dist;
@@ -181,21 +339,27 @@ function frame(){
   ctx.fill();
   ctx.restore();
 
-  // --- canh hoa roi ---
-  for (let k = 0; k < petals.length; k++){
-    const p = petals[k];
-    p.y += p.vy * (reduce ? 0.4 : 1);
-    p.x += Math.sin(t * 0.9 + p.ph) * p.sway * M;
-    p.rot += p.vr * M;
-    if (p.y > H + 20) petals[k] = spawn(false);
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(p.rot);
-    ctx.scale(p.s / 10, p.s / 10);
-    ctx.fillStyle = `hsla(${p.hue % 360}, 70%, 62%, ${p.alpha})`;
-    petalPath(9, 13);
-    ctx.fill();
-    ctx.restore();
+  // co tien canh sat goc hoa (ban ngay)
+  if (dv > 0.002) drawTuft(dv);
+
+  // canh hoa roi (nhat dan khi troi sang)
+  const pa = 1 - day * 0.78;
+  if (pa > 0.02){
+    for (let k = 0; k < petals.length; k++){
+      const p = petals[k];
+      p.y += p.vy * (reduce ? 0.4 : 1);
+      p.x += Math.sin(t * 0.9 + p.ph) * p.sway * M;
+      p.rot += p.vr * M;
+      if (p.y > H + 20) petals[k] = spawn(false);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.scale(p.s / 10, p.s / 10);
+      ctx.fillStyle = `hsla(${p.hue % 360}, 70%, 62%, ${p.alpha * pa})`;
+      petalPath(9, 13);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   requestAnimationFrame(frame);
