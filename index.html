@@ -86,6 +86,24 @@ const clouds = [
   { x: 0.40, y: 0.09, s: 0.7,  v: 0.10 }
 ].map(c => ({ ...c, x: c.x * (W || 800) }));
 
+// --- dong co + hoa dai (ban ngay), vi tri random co dinh ---
+function mulberry32(seed){
+  return function(){
+    seed = seed + 0x6D2B79F5 | 0;
+    let x = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x;
+    return ((x ^ x >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rnd = mulberry32(20260828);
+const blades = Array.from({ length: 175 }, () => ({
+  fx: rnd(), depth: rnd(), phase: rnd() * 6.283, lean: rnd() - 0.5, vy: rnd()
+}));
+const wild = Array.from({ length: 72 }, () => ({
+  fx: rnd(), fy: rnd(), size: 0.6 + rnd() * 0.9,
+  white: rnd() < 0.14, petals: rnd() < 0.5 ? 5 : 6, phase: rnd() * 6.283
+}));
+
 let mx = 0;
 addEventListener('pointermove', e => { mx = (e.clientX / W - 0.5) * 2; });
 
@@ -172,69 +190,118 @@ function drawClouds(a){
   ctx.restore();
 }
 
+function grassBlade(bx, by, bh, sw, w, col){
+  ctx.strokeStyle = col;
+  ctx.lineWidth = w;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.quadraticCurveTo(bx + sw * 0.45, by - bh * 0.62, bx + sw, by - bh);
+  ctx.stroke();
+}
+
+function wildFlower(wx, wy, sc, w){
+  ctx.save();
+  ctx.translate(wx, wy);
+  // cuong
+  ctx.strokeStyle = '#57a13a';
+  ctx.lineWidth = Math.max(0.7, 0.5 * sc);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(Math.sin(t + w.phase) * 1.4 * sc, -3.6 * sc, 0, -6.4 * sc);
+  ctx.stroke();
+  ctx.translate(0, -6.4 * sc);
+  ctx.rotate(Math.sin(t * 1.5 + w.phase) * 0.1 * M);
+  // canh hoa
+  const pc = w.white ? '#fbfbef' : '#ffd21e';
+  const cc = w.white ? '#ffcf2e' : '#f0990f';
+  for (let k = 0; k < w.petals; k++){
+    ctx.rotate(Math.PI * 2 / w.petals);
+    ctx.fillStyle = pc;
+    ctx.beginPath();
+    ctx.ellipse(0, -2.3 * sc, 1.15 * sc, 2.3 * sc, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = cc;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1.15 * sc, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath();
+  ctx.arc(-0.4 * sc, -0.4 * sc, 0.45 * sc, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawMeadow(a){
-  const horizon = CY + 88 * S;
+  const hz = CY + 84 * S;
+  const edge = x => hz + Math.sin(x * 0.012 + t * 0.4) * 5 * S + Math.sin(x * 0.045 + 1.7) * 2.5 * S;
   ctx.save();
   ctx.globalAlpha = a;
 
-  const grad = ctx.createLinearGradient(0, horizon - 20 * S, 0, H);
-  grad.addColorStop(0, '#8bc34a');
-  grad.addColorStop(0.5, '#5a9e37');
-  grad.addColorStop(1, '#3c7a2a');
+  // than co
+  const grad = ctx.createLinearGradient(0, hz - 26 * S, 0, H);
+  grad.addColorStop(0,    '#b6e05f');
+  grad.addColorStop(0.32, '#82c247');
+  grad.addColorStop(0.68, '#57a033');
+  grad.addColorStop(1,    '#3a7726');
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(0, horizon + 30 * S);
-  for (let x = 0; x <= W; x += 36){
-    ctx.lineTo(x, horizon + Math.sin(x * 0.02 + t * 0.6) * 7 * S);
-  }
+  ctx.moveTo(0, edge(0));
+  for (let x = 24; x <= W; x += 24) ctx.lineTo(x, edge(x));
   ctx.lineTo(W, H); ctx.lineTo(0, H);
   ctx.closePath();
   ctx.fill();
 
-  // co
-  for (let i = 0; i < 74; i++){
-    const depth = 0.25 + ((i * 7) % 10) / 10 * 0.75;
-    const bx = (i / 74) * W + Math.sin(i * 2.1) * 16 * S;
-    const by = horizon + (6 + depth * 46) * S + Math.sin(bx * 0.02 + t * 0.6) * 6 * S;
-    const bh = (16 + depth * 62) * S;
-    const sw = Math.sin(t * 1.6 + i) * 9 * depth * S * M;
-    ctx.strokeStyle = `hsl(${96 + depth * 18}, ${46 + depth * 14}%, ${26 + depth * 20}%)`;
-    ctx.lineWidth = (1.4 + depth * 1.8) * S;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(bx, by);
-    ctx.quadraticCurveTo(bx + sw * 0.5, by - bh * 0.6, bx + sw, by - bh);
-    ctx.stroke();
+  // vien nang mep co
+  ctx.strokeStyle = 'rgba(226,247,158,0.55)';
+  ctx.lineWidth = 3 * S;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += 24) x === 0 ? ctx.moveTo(x, edge(x)) : ctx.lineTo(x, edge(x));
+  ctx.stroke();
+
+  // lop co xa: thap, nhat, mo, sat chan troi
+  for (const b of blades){
+    if (b.depth >= 0.5) continue;
+    const bx = b.fx * W;
+    const by = edge(bx) + (2 + b.depth * 22) * S;
+    const bh = (8 + b.depth * 24) * S;
+    const sw = (Math.sin(t * 1.3 + b.phase) * 5 + b.lean * 9) * S * M;
+    grassBlade(bx, by, bh, sw, 1.5 * S,
+      `hsl(${94 + b.depth * 22}, 44%, ${50 + b.depth * 8}%)`);
   }
 
-  // hoa dai li ti
-  for (let j = 0; j < 14; j++){
-    const fx = ((j * 137.5) % 100) / 100 * W;
-    const fy = horizon + (18 + ((j * 53) % 40)) * S;
-    ctx.fillStyle = ['#fff3b0', '#ffd1e8', '#ffffff'][j % 3];
-    ctx.beginPath(); ctx.arc(fx, fy, 3.2 * S, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffca28';
-    ctx.beginPath(); ctx.arc(fx, fy, 1.3 * S, 0, Math.PI * 2); ctx.fill();
+  // hoa vang li ti rai khap dong co
+  for (const w of wild){
+    const wx = w.fx * W;
+    const t01 = w.fy;
+    const yy = edge(wx) + 8 * S + t01 * (H - edge(wx) - 14 * S);
+    const sc = (2.2 + t01 * 5.2) * w.size * S;
+    wildFlower(wx, yy, sc, w);
   }
-  ctx.restore();
-}
 
-function drawTuft(a){
-  ctx.save();
-  ctx.globalAlpha = a;
-  const gx = curCX, gy = CY + 150 * S;
-  for (let i = -8; i <= 8; i++){
-    const depth = 0.6 + Math.random() * 0.0;
-    const bh = (44 + Math.abs(8 - Math.abs(i)) * 6) * S;
-    const sw = Math.sin(t * 1.7 + i) * 10 * S * M;
-    ctx.strokeStyle = i % 2 ? '#4f9a34' : '#3f8129';
-    ctx.lineWidth = 2.4 * S;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(gx + i * 12 * S, gy);
-    ctx.quadraticCurveTo(gx + i * 12 * S + sw * 0.5, gy - bh * 0.6, gx + i * 12 * S + sw, gy - bh);
-    ctx.stroke();
+  // lop co gan: cao, dam, sac net, rai rac khap dong (phu truoc hoa dai)
+  for (const b of blades){
+    if (b.depth < 0.5) continue;
+    const bx = b.fx * W;
+    const root = edge(bx) + 6 * S + b.vy * (H - edge(bx) - 30 * S) * 0.72;
+    const near = 0.45 + (b.vy * 0.9 + b.depth * 0.5);   // cang xuong duoi cang cao
+    const bh = (18 + near * 44) * S;
+    const sw = (Math.sin(t * 1.6 + b.phase) * 8 + b.lean * 12) * S * M;
+    grassBlade(bx, root, bh, sw, (1.4 + near * 1.3) * S,
+      `hsl(${100 + b.depth * 14}, ${46 + b.depth * 14}%, ${22 + b.vy * 16}%)`);
   }
+
+  // cum co day quanh goc hoa
+  for (let i = -10; i <= 10; i++){
+    const gx = curCX + i * 10 * S;
+    const bh = (38 + (10 - Math.abs(i)) * 6) * S;
+    const sw = Math.sin(t * 1.7 + i) * 9 * S * M;
+    grassBlade(gx, CY + 150 * S, bh, sw, 2.2 * S, i % 2 ? '#4f9a34' : '#3d7d28');
+  }
+
   ctx.restore();
 }
 
@@ -338,9 +405,6 @@ function frame(){
   ctx.arc(0, 0, 10 * S, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-
-  // co tien canh sat goc hoa (ban ngay)
-  if (dv > 0.002) drawTuft(dv);
 
   // canh hoa roi (nhat dan khi troi sang)
   const pa = 1 - day * 0.78;
