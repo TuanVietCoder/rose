@@ -32,15 +32,70 @@
   body.day .title{ color:#4a2c33;text-shadow:0 1px 10px rgba(255,255,255,.85),0 0 2px rgba(255,255,255,.6) }
   body.day .hint{ color:rgba(74,44,51,.65) }
 
+  /* thanh boi ngay */
+  .bar{
+    position:fixed;left:50%;top:clamp(14px,4vh,34px);
+    transform:translateX(-50%) translateY(-18px);
+    width:min(94vw,440px);
+    background:rgba(255,255,255,.94);
+    border:1px solid rgba(74,44,51,.12);border-radius:16px;
+    padding:16px 18px 12px;
+    box-shadow:0 14px 44px rgba(40,20,25,.24);
+    color:#3a2b2f;z-index:10;
+    opacity:0;pointer-events:none;
+    transition:opacity .5s ease,transform .5s ease;
+  }
+  .bar.show{ opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto }
+  .bar h3{
+    font-family:"Cormorant Garamond",Georgia,serif;font-style:italic;font-weight:600;
+    font-size:1.42rem;line-height:1.2;margin-bottom:8px;padding-right:18px;
+  }
+  .bar .row{ display:flex;gap:8px }
+  .bar input{
+    flex:1;min-width:0;font:400 1rem system-ui,sans-serif;
+    padding:9px 12px;border:1px solid #d8c9cd;border-radius:10px;
+    background:#fff;color:#3a2b2f;
+  }
+  .bar input:focus{ outline:2px solid #d98aa0;outline-offset:1px }
+  .bar button.go{
+    font:600 .9rem system-ui,sans-serif;padding:9px 16px;border:0;border-radius:10px;
+    background:#c2415a;color:#fff;cursor:pointer;white-space:nowrap;
+  }
+  .bar button.go:hover{ background:#a83450 }
+  .bar .fortune{
+    font-family:"Cormorant Garamond",Georgia,serif;font-style:italic;
+    font-size:1.16rem;line-height:1.45;margin:2px 0 10px;
+  }
+  .bar .note{ display:block;margin-top:9px;font:400 .68rem/1.4 system-ui,sans-serif;color:#9a8a8f }
+  .bar .close{
+    position:absolute;top:7px;right:9px;background:0;border:0;
+    font-size:.95rem;color:#9a8a8f;cursor:pointer;padding:5px;line-height:1;
+  }
+
   @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){
     .title,.hint{animation:none;opacity:1;transform:none}
+    .bar{transition:opacity .3s ease}
   }
 </style>
 
 <canvas id="c"></canvas>
 <p class="title">Tặng bạn bông hồng cuộc đời &mdash; thêm zui!</p>
 <p class="hint">Di chuột hoặc chạm kéo để hoa nghiêng theo &middot; chạm vào bông hoa để trời sáng lên (chạm lần nữa: về đêm)</p>
+
+<div class="bar" id="bar" role="dialog" aria-label="Bói ngày hôm nay">
+  <button class="close" id="barClose" type="button" aria-label="Đóng">✕</button>
+  <h3>Tôi sẽ bói ngày hôm nay của bạn thế nào &mdash; nhập tên của bạn:</h3>
+  <div class="row" id="barInput">
+    <input id="barName" type="text" maxlength="40" placeholder="Tên của bạn" autocomplete="off" aria-label="Tên của bạn">
+    <button class="go" id="barGo" type="button">Xem quẻ</button>
+  </div>
+  <div id="barResult" hidden>
+    <p class="fortune" id="barText" aria-live="polite"></p>
+    <button class="go" id="barAgain" type="button">Bói lại</button>
+  </div>
+  <span class="note">Tên chỉ dùng ngay tại trình duyệt để bói cho vui &mdash; không lưu lại, không gửi đi đâu cả.</span>
+</div>
 
 <script>
 const cv = document.getElementById('c');
@@ -107,19 +162,94 @@ const wild = Array.from({ length: 72 }, () => ({
 let mx = 0;
 addEventListener('pointermove', e => { mx = (e.clientX / W - 0.5) * 2; });
 
+// --- bo bay: moi lan chuyen sang ngay se them 1 con o do cao random ---
+const cows = [];
+function addCow(){
+  if (cows.length >= 12) return;
+  cows.push({
+    x: Math.random() * W,
+    y: (0.05 + Math.random() * 0.42) * H,
+    dir: Math.random() < 0.5 ? 1 : -1,
+    spd: 0.4 + Math.random() * 1.2,
+    sc: 0.62 + Math.random() * 0.6,
+    ph: Math.random() * 6.283
+  });
+}
+
 // --- bam vao hoa => chuyen ngay / dem ---
 let day = 0, dayTarget = 0;
 let curCX = CX;
+const bar = document.getElementById('bar');
+let barArmed = false;
 function toggleDay(){
   dayTarget = dayTarget < 0.5 ? 1 : 0;
   document.body.classList.toggle('day', dayTarget > 0.5);
+  if (dayTarget > 0.5){
+    addCow();
+    if (!barArmed){ barArmed = true; setTimeout(() => bar.classList.add('show'), 1100); }
+  }
 }
-addEventListener('keydown', toggleDay);
+addEventListener('keydown', e => {
+  if (e.target.closest('.bar')) return;
+  toggleDay();
+});
 addEventListener('pointerdown', e => {
+  if (e.target.closest('.bar')) return;
   const dx = e.clientX - curCX;
   const dy = e.clientY - CY;
   if (Math.hypot(dx, dy) < 230 * S) toggleDay();
 });
+
+// --- boi ngay (chay hoan toan tai trinh duyet, khong gui di dau) ---
+const F_MOOD = [
+  'rực rỡ và nhiều tiếng cười', 'bình yên đến bất ngờ', 'may mắn gõ cửa lúc bạn không ngờ nhất',
+  'tràn đầy năng lượng', 'dịu dàng như nắng sớm', 'hơi lười một chút nhưng vui',
+  'đầy cảm hứng để bắt đầu điều mới', 'thong dong, chẳng vội điều gì'
+];
+const F_LUCK = [
+  'Màu hợp với bạn hôm nay: đỏ hồng.', 'Con số may mắn của bạn: {n}.',
+  'Gặp người mặc áo xanh, bạn sẽ có tin vui.', 'Một tin nhắn cũ sẽ khiến bạn mỉm cười.',
+  'Đừng bỏ bữa sáng — hôm nay bạn cần sức.', 'Việc bạn ngại nhất hoá ra lại dễ nhất.',
+  'Buổi chiều sẽ có một điều nho nhỏ dễ thương.'
+];
+const F_ADVICE = [
+  'Cứ mạnh dạn nhắn tin trước.', 'Nghỉ tay 10 phút và pha một tách trà.',
+  'Nói lời cảm ơn với một người hôm nay.', 'Bắt đầu việc khó ngay từ buổi sáng.',
+  'Tối nay ngủ sớm hơn 30 phút nhé.', 'Tin vào linh cảm đầu tiên của bạn.'
+];
+function hashStr(s){
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function tellFortune(raw){
+  const name = raw.trim();
+  const h = hashStr(name.toLowerCase() + '|' + new Date().toDateString());
+  const mood = F_MOOD[h % F_MOOD.length];
+  const luck = F_LUCK[(h >>> 3) % F_LUCK.length].replace('{n}', (h % 9) + 1);
+  const adv  = F_ADVICE[(h >>> 7) % F_ADVICE.length];
+  const star = 3 + (h % 3);
+  return `${name || 'Bạn'} ơi, ngày hôm nay của bạn sẽ ${mood}. ${luck} `
+       + `Lời khuyên nhỏ: ${adv} ${'★'.repeat(star)}${'☆'.repeat(5 - star)}`;
+}
+const barInput  = document.getElementById('barInput');
+const barResult = document.getElementById('barResult');
+const barName   = document.getElementById('barName');
+const barText   = document.getElementById('barText');
+function runFortune(){
+  barText.textContent = tellFortune(barName.value);
+  barInput.hidden = true;
+  barResult.hidden = false;
+}
+document.getElementById('barGo').addEventListener('click', runFortune);
+barName.addEventListener('keydown', e => { if (e.key === 'Enter') runFortune(); });
+document.getElementById('barAgain').addEventListener('click', () => {
+  barInput.hidden = false;
+  barResult.hidden = true;
+  barName.value = '';
+  barName.focus();
+});
+document.getElementById('barClose').addEventListener('click', () => bar.classList.remove('show'));
 
 function petalPath(a, b){
   ctx.beginPath();
@@ -187,6 +317,88 @@ function drawClouds(a){
     puff(cx,          cy + 12 * s, 24 * s);
     ctx.fill();
   }
+  ctx.restore();
+}
+
+function drawCow(c, a){
+  c.x += c.dir * c.spd * (reduce ? 0.4 : 1);
+  const pad = 90 * S;
+  if (c.x < -pad) c.x = W + pad;
+  if (c.x > W + pad) c.x = -pad;
+
+  const s = c.sc * S;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.translate(c.x, c.y + Math.sin(t * 1.2 + c.ph) * 6 * S);
+  ctx.scale(c.dir, 1);
+  ctx.lineJoin = 'round';
+
+  // canh (vo canh)
+  const wf = Math.sin(t * 9 + c.ph) * 0.55;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.strokeStyle = 'rgba(150,170,190,0.5)';
+  ctx.lineWidth = 1 * s;
+  for (const side of [-1, 1]){
+    ctx.save();
+    ctx.translate(side * 7 * s, -13 * s);
+    ctx.rotate(side * (0.5 - wf));
+    ctx.beginPath();
+    ctx.ellipse(0, -11 * s, 8 * s, 15 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // chan
+  ctx.strokeStyle = '#d7b3a2';
+  ctx.lineWidth = 3.2 * s;
+  ctx.lineCap = 'round';
+  for (const lx of [-14, -5, 6, 15]){
+    ctx.beginPath();
+    ctx.moveTo(lx * s, 11 * s);
+    ctx.lineTo(lx * s + Math.sin(t * 3 + lx) * 2 * s, 22 * s);
+    ctx.stroke();
+  }
+
+  // duoi
+  ctx.strokeStyle = '#fdfdfb';
+  ctx.lineWidth = 2.4 * s;
+  ctx.beginPath();
+  ctx.moveTo(-25 * s, -2 * s);
+  ctx.quadraticCurveTo(-34 * s, 3 * s + Math.sin(t * 2 + c.ph) * 3 * s, -31 * s, 11 * s);
+  ctx.stroke();
+  ctx.fillStyle = '#4a3b3f';
+  ctx.beginPath(); ctx.arc(-31 * s, 12 * s, 2.3 * s, 0, Math.PI * 2); ctx.fill();
+
+  // than
+  ctx.fillStyle = '#fdfdfb';
+  ctx.beginPath(); ctx.ellipse(0, 0, 25 * s, 15 * s, 0, 0, Math.PI * 2); ctx.fill();
+
+  // dom
+  ctx.fillStyle = '#4a3b3f';
+  ctx.beginPath(); ctx.ellipse(-8 * s, -3 * s, 6 * s, 4.6 * s, 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8 * s, 4 * s, 5 * s, 3.8 * s, -0.4, 0, Math.PI * 2); ctx.fill();
+
+  // dau
+  ctx.fillStyle = '#fdfdfb';
+  ctx.beginPath(); ctx.ellipse(23 * s, -5 * s, 11 * s, 9 * s, 0.2, 0, Math.PI * 2); ctx.fill();
+  // sung + tai
+  ctx.fillStyle = '#e7dcc0';
+  ctx.beginPath();
+  ctx.moveTo(20 * s, -12 * s); ctx.lineTo(22 * s, -21 * s); ctx.lineTo(25 * s, -12 * s);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fdfdfb';
+  ctx.beginPath(); ctx.ellipse(16 * s, -11 * s, 4 * s, 2.5 * s, -0.5, 0, Math.PI * 2); ctx.fill();
+  // mom
+  ctx.fillStyle = '#f4c1d0';
+  ctx.beginPath(); ctx.ellipse(30 * s, -1 * s, 6 * s, 5 * s, 0.15, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#c98fa3';
+  ctx.beginPath(); ctx.arc(29 * s, 0, 0.9 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(32 * s, -1 * s, 0.9 * s, 0, Math.PI * 2); ctx.fill();
+  // mat
+  ctx.fillStyle = '#3a2b2f';
+  ctx.beginPath(); ctx.arc(26 * s, -7 * s, 1.5 * s, 0, Math.PI * 2); ctx.fill();
+
   ctx.restore();
 }
 
@@ -326,7 +538,11 @@ function frame(){
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
-    if (dv > 0.002){ drawSun(dv); drawClouds(dv); }
+    if (dv > 0.002){
+      drawSun(dv);
+      drawClouds(dv);
+      for (const c of cows) drawCow(c, dv);
+    }
   }
 
   const breath = 1 + 0.04 * Math.sin(t * 1.6) * M;
