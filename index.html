@@ -66,6 +66,7 @@
     font-family:"Cormorant Garamond",Georgia,serif;font-style:italic;
     font-size:1.16rem;line-height:1.45;margin:2px 0 10px;
   }
+  .bar .sent{ font:600 .8rem/1.4 system-ui,sans-serif;color:#3a7a3a;margin:-4px 0 10px }
   .bar .note{ display:block;margin-top:9px;font:400 .68rem/1.4 system-ui,sans-serif;color:#9a8a8f }
   .bar .close{
     position:absolute;top:7px;right:9px;background:0;border:0;
@@ -85,16 +86,17 @@
 
 <div class="bar" id="bar" role="dialog" aria-label="Bói ngày hôm nay">
   <button class="close" id="barClose" type="button" aria-label="Đóng">✕</button>
-  <h3>Tôi sẽ bói ngày hôm nay của bạn thế nào &mdash; nhập tên của bạn:</h3>
+  <h3>Tôi sẽ bói ngày hôm nay của bạn &mdash; nhập tên vào đây:</h3>
   <div class="row" id="barInput">
     <input id="barName" type="text" maxlength="40" placeholder="Tên của bạn" autocomplete="off" aria-label="Tên của bạn">
-    <button class="go" id="barGo" type="button">Xem quẻ</button>
+    <button class="go" id="barGo" type="button">Xem quẻ &amp; gửi tên</button>
   </div>
   <div id="barResult" hidden>
     <p class="fortune" id="barText" aria-live="polite"></p>
+    <p class="sent" id="barSent" hidden>Đã gửi tên cho chủ trang ✓</p>
     <button class="go" id="barAgain" type="button">Bói lại</button>
   </div>
-  <span class="note">Tên chỉ dùng ngay tại trình duyệt để bói cho vui &mdash; không lưu lại, không gửi đi đâu cả.</span>
+  <span class="note">Khi bạn bấm &ldquo;Xem quẻ &amp; gửi tên&rdquo;, tên bạn nhập sẽ được gửi về cho chủ trang. Chỉ nhập nếu bạn đồng ý.</span>
 </div>
 
 <script>
@@ -232,20 +234,45 @@ function tellFortune(raw){
   return `${name || 'Bạn'} ơi, ngày hôm nay của bạn sẽ ${mood}. ${luck} `
        + `Lời khuyên nhỏ: ${adv} ${'★'.repeat(star)}${'☆'.repeat(5 - star)}`;
 }
+// === Gui ten nguoi xem ve cho chu trang qua Google Form ===
+// Dien 2 gia tri duoi day tu Google Form cua ban (lay tu "link dien san"):
+//   FORM_ACTION = URL form ket thuc bang /formResponse
+//   FORM_ENTRY  = ten truong dang "entry.1234567890"
+// De trong ca hai => chi boi tai cho, khong gui gi.
+const FORM_ACTION = '';
+const FORM_ENTRY  = '';
+
 const barInput  = document.getElementById('barInput');
 const barResult = document.getElementById('barResult');
 const barName   = document.getElementById('barName');
 const barText   = document.getElementById('barText');
+const barSent   = document.getElementById('barSent');
+function sendName(raw){
+  const name = raw.trim();
+  if (!FORM_ACTION || !FORM_ENTRY || !name) return;
+  const data = new FormData();
+  data.append(FORM_ENTRY, name);
+  fetch(FORM_ACTION, { method: 'POST', mode: 'no-cors', body: data }).catch(() => {});
+  barSent.hidden = false;
+}
 function runFortune(){
   barText.textContent = tellFortune(barName.value);
+  sendName(barName.value);
   barInput.hidden = true;
   barResult.hidden = false;
+}
+// neu chua cau hinh Form: khong hua hen chuyen gui di
+if (!FORM_ACTION || !FORM_ENTRY){
+  document.getElementById('barGo').textContent = 'Xem quẻ';
+  document.querySelector('.bar .note').textContent =
+    'Tên chỉ dùng ngay tại trình duyệt để bói cho vui.';
 }
 document.getElementById('barGo').addEventListener('click', runFortune);
 barName.addEventListener('keydown', e => { if (e.key === 'Enter') runFortune(); });
 document.getElementById('barAgain').addEventListener('click', () => {
   barInput.hidden = false;
   barResult.hidden = true;
+  barSent.hidden = true;
   barName.value = '';
   barName.focus();
 });
